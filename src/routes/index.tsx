@@ -74,6 +74,27 @@ async function compressImage(file: File, maxSize = 900, quality = 0.8): Promise<
   return canvas.toDataURL("image/jpeg", quality);
 }
 
+async function cropImageToDataUrl(
+  src: string,
+  area: Area,
+  outSize = 600,
+  quality = 0.82,
+): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = src;
+  });
+  const canvas = document.createElement("canvas");
+  canvas.width = outSize;
+  canvas.height = outSize;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return src;
+  ctx.drawImage(img, area.x, area.y, area.width, area.height, 0, 0, outSize, outSize);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
 function Index() {
   const [data, setData] = useState<SlotData>({});
   const [openSlot, setOpenSlot] = useState<string | null>(null);
