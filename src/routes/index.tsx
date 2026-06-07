@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Heart, Plus, Trash2, X } from "lucide-react";
+import { Heart, Plus, Trash2, X, Download } from "lucide-react";
+import { toPng } from "html-to-image";
 import Cropper, { type Area } from "react-easy-crop";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,30 @@ function Index() {
   const [openSlot, setOpenSlot] = useState<string | null>(null);
   const [hoveredSlot, setHoveredSlot] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const captureRef = useRef<HTMLDivElement>(null);
+
+  const handleDownload = async () => {
+    if (!captureRef.current) return;
+    setExporting(true);
+    try {
+      // wait a tick so the exporting state (hides hover/buttons) applies
+      await new Promise((r) => setTimeout(r, 50));
+      const dataUrl = await toPng(captureRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#fff5f7",
+      });
+      const link = document.createElement("a");
+      link.download = "nossa-arvore-do-amor.png";
+      link.href = dataUrl;
+      link.click();
+    } catch (e) {
+      console.error("Falha ao gerar imagem", e);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     try {
