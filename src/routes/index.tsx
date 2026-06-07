@@ -212,68 +212,84 @@ function Index() {
       </header>
 
       <main className="relative z-10 mx-auto max-w-5xl px-4 pb-24">
-        <div className="relative mx-auto aspect-[4/5] w-full max-w-3xl sway">
-          <TreeSVG />
+        <div ref={captureRef} className="relative rounded-3xl px-4 py-6">
+          <div className="relative mx-auto aspect-[4/5] w-full max-w-3xl sway">
+            <TreeSVG />
 
-          {/* Slots overlay */}
-          <div className="absolute inset-0">
-            {SLOTS.map((s) => {
-              const mem = data[s.id];
-              return (
-                <div
-                  key={s.id}
-                  className="absolute -translate-x-1/2 -translate-y-1/2"
-                  style={{ left: `${s.x}%`, top: `${s.y}%` }}
-                  onMouseEnter={() => setHoveredSlot(s.id)}
-                  onMouseLeave={() => setHoveredSlot(null)}
-                >
-                  <button
-                    onClick={() => setOpenSlot(s.id)}
-                    className="heart-node group relative grid place-items-center rounded-full border-[3px] border-rose/80 bg-card overflow-hidden transition-transform hover:scale-110"
-                    style={{ width: s.size, height: s.size }}
-                    aria-label={mem ? "Ver memória" : "Adicionar memória"}
+            {/* Slots overlay */}
+            <div className="absolute inset-0">
+              {SLOTS.map((s) => {
+                const mem = data[s.id];
+                return (
+                  <div
+                    key={s.id}
+                    className="absolute -translate-x-1/2 -translate-y-1/2"
+                    style={{ left: `${s.x}%`, top: `${s.y}%` }}
+                    onMouseEnter={() => setHoveredSlot(s.id)}
+                    onMouseLeave={() => setHoveredSlot(null)}
                   >
-                    {mem ? (
-                      <img
-                        src={mem.image}
-                        alt={mem.comment}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center text-rose/70">
-                        <Plus className="w-5 h-5" />
+                    <button
+                      onClick={() => !exporting && setOpenSlot(s.id)}
+                      className="heart-node group relative grid place-items-center rounded-full border-[3px] border-rose/80 bg-card overflow-hidden transition-transform hover:scale-110"
+                      style={{ width: s.size, height: s.size }}
+                      aria-label={mem ? "Ver memória" : "Adicionar memória"}
+                    >
+                      {mem ? (
+                        <img
+                          src={mem.image}
+                          alt={mem.comment}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        !exporting && (
+                          <div className="flex flex-col items-center text-rose/70">
+                            <Plus className="w-5 h-5" />
+                          </div>
+                        )
+                      )}
+                    </button>
+
+                    {/* Hover tooltip */}
+                    {mem && hoveredSlot === s.id && !exporting && (
+                      <div className="absolute left-1/2 -translate-x-1/2 -top-3 -translate-y-full z-30 w-56 animate-in fade-in zoom-in-95">
+                        <div className="bg-popover text-popover-foreground rounded-xl shadow-xl px-4 py-3 border border-rose/40">
+                          <div className="flex items-start gap-2">
+                            <Heart className="w-3.5 h-3.5 mt-1 shrink-0 fill-rose text-rose" />
+                            <p className="font-serif italic text-sm leading-snug">
+                              "{mem.comment}"
+                            </p>
+                          </div>
+                          {mem.date && (
+                            <p className="font-display text-rose-soft text-base mt-1 text-right">
+                              {mem.date}
+                            </p>
+                          )}
+                        </div>
+                        <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 rotate-45 bg-popover border-r border-b border-rose/40" />
                       </div>
                     )}
-                  </button>
-
-                  {/* Hover tooltip */}
-                  {mem && hoveredSlot === s.id && (
-                    <div className="absolute left-1/2 -translate-x-1/2 -top-3 -translate-y-full z-30 w-56 animate-in fade-in zoom-in-95">
-                      <div className="bg-popover text-popover-foreground rounded-xl shadow-xl px-4 py-3 border border-rose/40">
-                        <div className="flex items-start gap-2">
-                          <Heart className="w-3.5 h-3.5 mt-1 shrink-0 fill-rose text-rose" />
-                          <p className="font-serif italic text-sm leading-snug">
-                            "{mem.comment}"
-                          </p>
-                        </div>
-                        {mem.date && (
-                          <p className="font-display text-rose-soft text-base mt-1 text-right">
-                            {mem.date}
-                          </p>
-                        )}
-                      </div>
-                      <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 rotate-45 bg-popover border-r border-b border-rose/40" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
+
+          <p className="text-center font-serif italic text-muted-foreground mt-8 text-sm">
+            "Plantamos esse amor em 08 de fevereiro de 2025 — e ele só faz crescer."
+          </p>
         </div>
 
-        <p className="text-center font-serif italic text-muted-foreground mt-8 text-sm">
-          "Plantamos esse amor em 08 de fevereiro de 2025 — e ele só faz crescer."
-        </p>
+        <div className="mt-8 flex justify-center">
+          <Button
+            onClick={handleDownload}
+            disabled={exporting}
+            size="lg"
+            className="bg-rose hover:bg-rose/90 text-white rounded-full shadow-lg gap-2 font-serif"
+          >
+            <Download className="w-4 h-4" />
+            {exporting ? "Preparando..." : "Salvar como imagem"}
+          </Button>
+        </div>
       </main>
 
       <MemoryDialog
