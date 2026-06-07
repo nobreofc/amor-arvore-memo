@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Heart, Plus, Trash2, X } from "lucide-react";
+import Cropper, { type Area } from "react-easy-crop";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -69,6 +71,27 @@ async function compressImage(file: File, maxSize = 900, quality = 0.8): Promise<
   const ctx = canvas.getContext("2d");
   if (!ctx) return dataUrl;
   ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+async function cropImageToDataUrl(
+  src: string,
+  area: Area,
+  outSize = 600,
+  quality = 0.82,
+): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = src;
+  });
+  const canvas = document.createElement("canvas");
+  canvas.width = outSize;
+  canvas.height = outSize;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return src;
+  ctx.drawImage(img, area.x, area.y, area.width, area.height, 0, 0, outSize, outSize);
   return canvas.toDataURL("image/jpeg", quality);
 }
 
@@ -327,32 +350,65 @@ function MemoryDialog({
   onSave: (m: Memory) => void;
   onDelete: () => void;
 }) {
-  const [image, setImage] = useState<string>("");
+  const [image, setImage] = useState<string>(""); // final cropped dataURL (saved)
+  const [rawImage, setRawImage] = useState<string>(""); // original to crop
   const [comment, setComment] = useState("");
   const [date, setDate] = useState("");
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedArea, setCroppedArea] = useState<Area | null>(null);
+  const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (slot) {
       setImage(memory?.image ?? "");
+      setRawImage("");
       setComment(memory?.comment ?? "");
       setDate(memory?.date ?? "");
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedArea(null);
     }
   }, [slot, memory]);
 
-  const handleFile = async (file: File) => {
+  const handleFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setRawImage(reader.result as string);
+      setImage("");
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const onCropComplete = useCallback((_: Area, areaPixels: Area) => {
+    setCroppedArea(areaPixels);
+  }, []);
+
+  const confirmCrop = async () => {
+    if (!rawImage || !croppedArea) return;
+    setBusy(true);
     try {
-      const compressed = await compressImage(file, 900, 0.8);
-      setImage(compressed);
+      const out = await cropImageToDataUrl(rawImage, croppedArea, 600, 0.82);
+      setImage(out);
+      setRawImage("");
     } catch (err) {
-      console.error("Falha ao processar imagem:", err);
-      const reader = new FileReader();
-      reader.onload = () => setImage(reader.result as string);
-      reader.readAsDataURL(file);
+      console.error(err);
+    } finally {
+      setBusy(false);
     }
   };
 
-  const canSave = image && comment.trim().length > 0;
+  const reCrop = () => {
+    if (!image) return;
+    setRawImage(image);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+  };
+
+  const canSave = !!image && comment.trim().length > 0 && !rawImage;
 
   return (
     <Dialog open={!!slot} onOpenChange={(o) => !o && onClose()}>
@@ -364,26 +420,79 @@ function MemoryDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div
-            onClick={() => fileRef.current?.click()}
-            className="relative cursor-pointer rounded-xl border-2 border-dashed border-rose/40 bg-muted/40 aspect-square overflow-hidden grid place-items-center transition hover:border-rose"
-          >
-            {image ? (
-              <img src={image} alt="preview" className="w-full h-full object-cover" />
-            ) : (
-              <div className="text-center text-muted-foreground p-6">
-                <Heart className="w-10 h-10 mx-auto mb-2 text-rose/60" />
-                <p className="font-serif">Clique para escolher uma foto nossa</p>
+          {rawImage ? (
+            <div className="space-y-3">
+              <div className="relative rounded-xl overflow-hidden bg-black aspect-square">
+                <Cropper
+                  image={rawImage}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  cropShape="round"
+                  showGrid={false}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={onCropComplete}
+                />
               </div>
-            )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-            />
-          </div>
+              <div className="space-y-1">
+                <Label className="font-serif text-xs text-muted-foreground">Zoom</Label>
+                <Slider
+                  value={[zoom]}
+                  min={1}
+                  max={4}
+                  step={0.05}
+                  onValueChange={(v) => setZoom(v[0])}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={confirmCrop}
+                  disabled={busy || !croppedArea}
+                  className="flex-1 bg-rose hover:bg-rose/90 text-primary-foreground"
+                >
+                  <Heart className="w-4 h-4 mr-1 fill-current" />
+                  {busy ? "Recortando..." : "Aplicar recorte"}
+                </Button>
+                <Button variant="outline" onClick={() => setRawImage("")} className="border-rose/40">
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={() => fileRef.current?.click()}
+              className="relative cursor-pointer rounded-xl border-2 border-dashed border-rose/40 bg-muted/40 aspect-square overflow-hidden grid place-items-center transition hover:border-rose"
+            >
+              {image ? (
+                <>
+                  <img src={image} alt="preview" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      reCrop();
+                    }}
+                    className="absolute bottom-2 right-2 bg-card/90 text-rose border border-rose/40 rounded-full px-3 py-1 text-xs font-serif shadow hover:bg-card"
+                  >
+                    Reenquadrar
+                  </button>
+                </>
+              ) : (
+                <div className="text-center text-muted-foreground p-6">
+                  <Heart className="w-10 h-10 mx-auto mb-2 text-rose/60" />
+                  <p className="font-serif">Clique para escolher uma foto nossa</p>
+                </div>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="comment" className="font-serif">Comentário</Label>
