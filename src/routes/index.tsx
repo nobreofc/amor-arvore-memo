@@ -315,10 +315,16 @@ function MemoryDialog({
     }
   }, [slot, memory]);
 
-  const handleFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => setImage(reader.result as string);
-    reader.readAsDataURL(file);
+  const handleFile = async (file: File) => {
+    try {
+      const compressed = await compressImage(file, 900, 0.8);
+      setImage(compressed);
+    } catch (err) {
+      console.error("Falha ao processar imagem:", err);
+      const reader = new FileReader();
+      reader.onload = () => setImage(reader.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   const canSave = image && comment.trim().length > 0;
