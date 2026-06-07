@@ -62,7 +62,12 @@ function Index() {
   }, []);
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (!loaded) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.warn("Não foi possível salvar (armazenamento cheio):", err);
+    }
   }, [data, loaded]);
 
   const daysTogether = useMemo(() => {
