@@ -47,6 +47,31 @@ const SLOTS: { id: string; x: number; y: number; size: number }[] = [
 
 const STORAGE_KEY = "love-tree-memories-v1";
 
+async function compressImage(file: File, maxSize = 900, quality = 0.8): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = dataUrl;
+  });
+  const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
 function Index() {
   const [data, setData] = useState<SlotData>({});
   const [openSlot, setOpenSlot] = useState<string | null>(null);
@@ -62,7 +87,12 @@ function Index() {
   }, []);
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (!loaded) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.warn("Não foi possível salvar (armazenamento cheio):", err);
+    }
   }, [data, loaded]);
 
   const daysTogether = useMemo(() => {
@@ -310,10 +340,16 @@ function MemoryDialog({
     }
   }, [slot, memory]);
 
-  const handleFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => setImage(reader.result as string);
-    reader.readAsDataURL(file);
+  const handleFile = async (file: File) => {
+    try {
+      const compressed = await compressImage(file, 900, 0.8);
+      setImage(compressed);
+    } catch (err) {
+      console.error("Falha ao processar imagem:", err);
+      const reader = new FileReader();
+      reader.onload = () => setImage(reader.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   const canSave = image && comment.trim().length > 0;
